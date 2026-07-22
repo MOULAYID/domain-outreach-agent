@@ -1,0 +1,4 @@
+# Domain Inventory List (one per line)
+ai-healthbot.com
+cloudfinance.io
+fintechpay.co
