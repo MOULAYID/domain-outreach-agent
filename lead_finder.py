@@ -127,12 +127,13 @@ class LeadFinder:
                 found_count += 1
                 print(f"   [+] Found lead via Search: {lead['email']} ({lead['company']})")
 
-        # Method 3: B2B API Enrichment (Hunter.io / Apollo)
-        api_lead = self.enricher.find_lead_for_domain(target_domain)
-        if api_lead:
-            if self.db.add_lead(target_domain, api_lead['lead_email'], api_lead['lead_name'], api_lead['company_name'], api_lead['source']):
-                found_count += 1
-                print(f"   [+] Found lead via B2B API: {api_lead['lead_email']} ({api_lead['company_name']})")
+        # Method 3: B2B API Enrichment (Hunter.io - Query only if free methods found 0 leads)
+        if found_count == 0 and self.enricher.hunter_api_key:
+            api_lead = self.enricher.find_lead_for_domain(target_domain)
+            if api_lead:
+                if self.db.add_lead(target_domain, api_lead['lead_email'], api_lead['lead_name'], api_lead['company_name'], api_lead['source']):
+                    found_count += 1
+                    print(f"   [+] Found lead via Hunter API: {api_lead['lead_email']} ({api_lead['company_name']})")
 
         if found_count == 0:
             print(f"   [-] No new unique leads discovered for {target_domain}.")

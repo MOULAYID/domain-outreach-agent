@@ -18,6 +18,7 @@ class Config:
     MAX_DELAY_SECONDS = int(os.getenv("MAX_DELAY_SECONDS", 420))
     
     DB_FILE = Path(__file__).parent / os.getenv("DB_FILE", "outreach.db")
+    HUNTER_API_KEY = os.getenv("HUNTER_API_KEY", "")
 
     @classmethod
     def validate_smtp(cls) -> bool:
