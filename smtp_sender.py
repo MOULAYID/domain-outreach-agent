@@ -37,6 +37,12 @@ class SmtpSender:
         except Exception as e:
             raise RuntimeError(f"SMTP Dispatch Error ({Config.SMTP_HOST}:{Config.SMTP_PORT}): {str(e)}")
 
+    def send_email(self, to_email: str, subject: str, body: str, dry_run: bool = False) -> bool:
+        if dry_run:
+            print(f"[DRY-RUN SIMULATION] Would send email to: {to_email}")
+            return True
+        return self.send_single_email(to_email, subject, body)
+
     def execute_campaign(self, dry_run: bool = True) -> int:
         drafed_leads = self.db.get_leads_by_status("DRAFTED")
         if not drafed_leads:
