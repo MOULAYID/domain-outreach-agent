@@ -7,7 +7,7 @@ class EmailGenerator:
         self.db = db
 
     def generate_pitch(self, target_domain: str, company_name: str, lead_name: str = "", category: str = "") -> tuple[str, str]:
-        first_name = lead_name.strip().split()[0] if lead_name and lead_name.strip() and lead_name != "Decision Maker" else "there"
+        greeting = "Hi,"
 
         if category:
             raw_items = [item.strip() for item in re.split(r'[,\|;]', category) if item.strip()]
@@ -23,7 +23,7 @@ class EmailGenerator:
 
         subject = f"{target_domain}"
 
-        body = f"""Hi {first_name},
+        body = f"""{greeting}
 
 I am reaching out because **{target_domain}** is currently available for acquisition.
 
@@ -42,11 +42,11 @@ P.S. To ensure a safe and smooth transfer, we conduct all transactions securely 
         return subject, body
 
     def generate_followup_pitch(self, target_domain: str, lead_name: str = "") -> tuple[str, str]:
-        first_name = lead_name.strip().split()[0] if lead_name and lead_name.strip() and lead_name != "Decision Maker" else "there"
+        greeting = "Hi,"
 
         subject = f"Re: {target_domain}"
 
-        body = f"""Hi {first_name},
+        body = f"""{greeting}
 
 I know things get busy, so I will keep this brief.
 
