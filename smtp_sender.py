@@ -103,3 +103,18 @@ class SmtpSender:
 
         print(f"\n[OK] Campaign execution complete. Total processed: {dispatched_count}.")
         return dispatched_count
+
+    def test_connection(self) -> tuple[bool, str]:
+        try:
+            if Config.SMTP_PORT == 465:
+                with smtplib.SMTP_SSL(Config.SMTP_HOST, Config.SMTP_PORT, timeout=10) as server:
+                    server.login(Config.SMTP_USER, Config.SMTP_PASS)
+            else:
+                with smtplib.SMTP(Config.SMTP_HOST, Config.SMTP_PORT, timeout=10) as server:
+                    server.ehlo()
+                    server.starttls()
+                    server.ehlo()
+                    server.login(Config.SMTP_USER, Config.SMTP_PASS)
+            return True, f"Successfully authenticated with {Config.SMTP_HOST}:{Config.SMTP_PORT} as {Config.SMTP_USER}"
+        except Exception as e:
+            return False, f"Connection Failed: {str(e)}"

@@ -212,22 +212,59 @@ class DatabaseManager:
             """).fetchone()
             return res["cnt"] if res else 0
 
+    def get_lead_stats(self) -> Dict[str, int]:
+        with self.get_connection() as conn:
+            rows = conn.cursor().execute("SELECT status, COUNT(*) as cnt FROM leads GROUP BY status").fetchall()
+            stats = {"DISCOVERED": 0, "DRAFTED": 0, "SENT": 0, "FAILED": 0, "REPLIED": 0, "UNSUBSCRIBED": 0}
+            for r in rows:
+                st = r["status"]
+                stats[st] = r["cnt"]
+            return stats
+
+    def add_single_domain(self, domain_name: str, category: str = "") -> bool:
+        clean_dom = domain_name.strip().lower()
+        if not clean_dom:
+            return False
+        with self.get_connection() as conn:
+            try:
+                conn.cursor().execute("INSERT INTO domains (domain_name, category) VALUES (?, ?)", (clean_dom, category.strip()))
+                conn.commit()
+                return True
+            except sqlite3.IntegrityError:
+                return False
+
+    def add_single_lead(self, target_domain: str, lead_email: str, lead_name: str = "", company_name: str = "", source: str = "Manual GUI Entry") -> bool:
+        clean_dom = target_domain.strip().lower()
+        clean_email = lead_email.strip().lower()
+        if not clean_dom or not clean_email:
+            return False
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            # Ensure domain exists
+            cursor.execute("INSERT OR IGNORE INTO domains (domain_name, category) VALUES (?, '')", (clean_dom,))
+            try:
+                cursor.execute("""
+                    INSERT INTO leads (target_domain, lead_email, lead_name, company_name, source, status)
+                    VALUES (?, ?, ?, ?, ?, 'DISCOVERED')
+                """, (clean_dom, clean_email, lead_name.strip(), company_name.strip(), source))
+                conn.commit()
+                return True
+            except sqlite3.IntegrityError:
+                return False
+
     def delete_domains_by_ids(self, domain_ids: List[int]) -> int:
         if not domain_ids:
             return 0
         placeholders = ",".join(["?"] * len(domain_ids))
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            # Fetch domain names to clean up associated leads
             doms = cursor.execute(f"SELECT domain_name FROM domains WHERE id IN ({placeholders})", domain_ids).fetchall()
             dom_names = [d["domain_name"] for d in doms]
             
-            # Delete associated leads
             if dom_names:
                 lead_placeholders = ",".join(["?"] * len(dom_names))
                 cursor.execute(f"DELETE FROM leads WHERE target_domain IN ({lead_placeholders})", dom_names)
             
-            # Delete domains
             cursor.execute(f"DELETE FROM domains WHERE id IN ({placeholders})", domain_ids)
             conn.commit()
             return len(domain_ids)
