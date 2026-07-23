@@ -14,6 +14,8 @@ from database import DatabaseManager
 from lead_finder import LeadFinder
 from email_generator import EmailGenerator
 from smtp_sender import SmtpSender
+from imap_listener import ImapListener
+from email_verifier import EmailVerifier
 
 def banner():
     print("=" * 60)
@@ -202,10 +204,63 @@ def cmd_send(args, db: DatabaseManager):
     dry_run = not is_live
     sender.execute_campaign(dry_run=dry_run)
 
-def cmd_run_all(args, db: DatabaseManager):
-    print("\n[*] Executing Full Automation Workflow...")
-    cmd_discover(args, db)
+def cmd_sync_inbox(args, db: DatabaseManager):
+    print("\n[*] Connecting to Hostinger IMAP Inbox (imap.hostinger.com:993)...")
+    listener = ImapListener(db)
+    summary = listener.sync_inbox()
+    print(f"\n[OK] Inbox Sync Summary: {summary['replied']} reply(ies) detected, {summary['unsubscribed']} unsubscribe(s) processed.")
+
+def cmd_verify_emails(args, db: DatabaseManager):
+    leads = db.get_leads_by_status("DISCOVERED")
+    if not leads:
+        print("\n[*] No pending DISCOVERED leads found needing email verification.")
+        return
+
+    print(f"\n[*] Running Pre-Send Email Verification for {len(leads)} lead(s)...")
+    valid_count = 0
+    invalid_count = 0
+
+    for lead in leads:
+        email_addr = lead["lead_email"]
+        is_valid, reason = EmailVerifier.is_deliverable(email_addr)
+        if is_valid:
+            valid_count += 1
+        else:
+            invalid_count += 1
+            print(f"   [!] Failed Verification: {email_addr} ({reason}) ➔ Marking FAILED")
+            db.mark_lead_failed(lead["id"], f"Pre-Send Verification Error: {reason}")
+
+    print(f"\n[OK] Pre-Send Email Verification Complete: {valid_count} valid, {invalid_count} failed.")
+
+def cmd_auto_run(args, db: DatabaseManager):
+    print("\n" + "=" * 60)
+    print("  [+] EXECUTING UNIFIED AUTOMATION SUITE (AUTO-RUN)  ")
+    print("=" * 60)
+
+    # 1. Sync Inbox for Unsubscribes & Replies
+    cmd_sync_inbox(args, db)
+
+    # 2. Run Pre-Send Email Verification
+    cmd_verify_emails(args, db)
+
+    # 3. Generate Pitch Drafts
     cmd_generate(args, db)
+
+    # 4. Check Follow-Up Drafts
+    print("\n[*] Checking for Follow-Up Emails Due...")
+    due_followups = db.get_leads_due_for_followup(days_delay=3)
+    if due_followups:
+        print(f"[*] Found {len(due_followups)} lead(s) due for follow-up outreach...")
+        generator = EmailGenerator(db)
+        for lead in due_followups:
+            lead_id = lead["id"]
+            target_domain = lead["target_domain"]
+            lead_name = lead["lead_name"]
+            subj, body = generator.generate_followup_pitch(target_domain, lead_name)
+            db.update_lead_draft(lead_id, subj, body)
+            print(f"   [OK] Drafted Follow-Up email for: {lead['lead_email']} ({target_domain})")
+
+    # 5. Dispatch Email Campaign
     cmd_send(args, db)
 
 def cmd_status(args, db: DatabaseManager):
@@ -213,16 +268,18 @@ def cmd_status(args, db: DatabaseManager):
     leads = db.get_all_leads()
     sent_today = db.get_sent_count_today()
 
-    status_counts = {"DISCOVERED": 0, "DRAFTED": 0, "SENT": 0, "FAILED": 0}
+    status_counts = {"DISCOVERED": 0, "DRAFTED": 0, "SENT": 0, "FAILED": 0, "REPLIED": 0, "UNSUBSCRIBED": 0}
     for lead in leads:
         st = lead["status"]
         status_counts[st] = status_counts.get(st, 0) + 1
 
     table_data = [
         ["Total Domains Managed", len(domains)],
-        ["Total Leads Discovered", len(leads)],
+        ["Total Leads Tracked", len(leads)],
         ["Pending Drafts (DRAFTED)", status_counts["DRAFTED"]],
         ["Dispatched Leads (SENT)", status_counts["SENT"]],
+        ["Prospect Replies (REPLIED)", status_counts["REPLIED"]],
+        ["Opted Out (UNSUBSCRIBED)", status_counts["UNSUBSCRIBED"]],
         ["Failed Dispatches (FAILED)", status_counts["FAILED"]],
         ["Emails Sent Today", f"{sent_today} / {Config.MAX_DAILY_EMAILS}"]
     ]
@@ -271,6 +328,16 @@ def main():
     p_send = subparsers.add_parser("send", help="Send emails to drafted leads")
     p_send.add_argument("--live", action="store_true", help="Run live Hostinger SMTP dispatch (default is --dry-run)")
 
+    # Sync Inbox
+    p_sync = subparsers.add_parser("sync-inbox", help="Sync Hostinger IMAP inbox for replies and unsubscribes")
+
+    # Verify Emails
+    p_verify = subparsers.add_parser("verify-emails", help="Run pre-send syntax and MX DNS verification on leads")
+
+    # Auto-Run
+    p_autorun = subparsers.add_parser("auto-run", help="Run complete daily automation (Sync Inbox -> Verify -> Pitch -> Follow-up -> Send)")
+    p_autorun.add_argument("--live", action="store_true", help="Run live Hostinger SMTP dispatch")
+
     # Run-All
     p_runall = subparsers.add_parser("run-all", help="Execute discover, generate, and send in sequence")
     p_runall.add_argument("--live", action="store_true", help="Run live Hostinger SMTP dispatch")
@@ -290,7 +357,10 @@ def main():
         "discover": cmd_discover,
         "generate": cmd_generate,
         "send": cmd_send,
-        "run-all": cmd_run_all,
+        "sync-inbox": cmd_sync_inbox,
+        "verify-emails": cmd_verify_emails,
+        "auto-run": cmd_auto_run,
+        "run-all": cmd_auto_run,
         "status": cmd_status
     }
 

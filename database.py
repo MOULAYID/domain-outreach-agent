@@ -165,6 +165,35 @@ class DatabaseManager:
             """, (lead_id,))
             conn.commit()
 
+    def mark_lead_unsubscribed(self, lead_id: int):
+        with self.get_connection() as conn:
+            conn.cursor().execute("""
+                UPDATE leads 
+                SET status = 'UNSUBSCRIBED'
+                WHERE id = ?
+            """, (lead_id,))
+            conn.commit()
+
+    def mark_lead_replied(self, lead_id: int):
+        with self.get_connection() as conn:
+            conn.cursor().execute("""
+                UPDATE leads 
+                SET status = 'REPLIED'
+                WHERE id = ?
+            """, (lead_id,))
+            conn.commit()
+
+    def get_leads_due_for_followup(self, days_delay: int = 3) -> List[sqlite3.Row]:
+        with self.get_connection() as conn:
+            return conn.cursor().execute("""
+                SELECT l.*, d.category as domain_category 
+                FROM leads l 
+                LEFT JOIN domains d ON l.target_domain = d.domain_name 
+                WHERE (l.status = 'SENT' OR l.status = 'INITIAL_SENT') 
+                  AND julianday('now') - julianday(l.sent_at) >= ?
+                ORDER BY l.id ASC
+            """, (days_delay,)).fetchall()
+
     def mark_lead_failed(self, lead_id: int, error_msg: str):
         with self.get_connection() as conn:
             conn.cursor().execute("""
@@ -178,6 +207,7 @@ class DatabaseManager:
         with self.get_connection() as conn:
             res = conn.cursor().execute("""
                 SELECT COUNT(*) as cnt FROM leads 
-                WHERE status = 'SENT' AND date(sent_at) = date('now')
+                WHERE (status = 'SENT' OR status = 'INITIAL_SENT' OR status = 'FOLLOWUP_SENT') 
+                  AND date(sent_at) = date('now')
             """).fetchone()
             return res["cnt"] if res else 0

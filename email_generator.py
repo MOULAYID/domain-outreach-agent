@@ -41,6 +41,25 @@ P.S. To ensure a safe and smooth transfer, we conduct all transactions securely 
 """
         return subject, body
 
+    def generate_followup_pitch(self, target_domain: str, lead_name: str = "") -> tuple[str, str]:
+        first_name = lead_name.strip().split()[0] if lead_name and lead_name.strip() and lead_name != "Decision Maker" else "there"
+
+        subject = f"Re: {target_domain}"
+
+        body = f"""Hi {first_name},
+
+I know things get busy, so I will keep this brief.
+
+If you aren't the right person to speak with regarding digital asset acquisitions for your team, could you kindly point me in the right direction?
+
+Best,
+
+Idris | DomainEpoch
+linkedin.com/in/moulay-idris-daouadi-/
+domainepoch.com | contact@domainepoch.com
+"""
+        return subject, body
+
     def generate_drafts_for_pending_leads(self) -> int:
         pending_leads = self.db.get_leads_by_status("DISCOVERED")
         if not pending_leads:
@@ -60,7 +79,7 @@ P.S. To ensure a safe and smooth transfer, we conduct all transactions securely 
             subject, body = self.generate_pitch(target_domain, company_name, lead_name, category)
             self.db.update_lead_draft(lead_id, subject, body)
             drafted_count += 1
-            print(f"   [OK] Drafted email for lead: {lead['lead_email']} ({target_domain})")
+            print(f"   [OK] Drafted initial email for lead: {lead['lead_email']} ({target_domain})")
 
         return drafted_count
 
