@@ -66,11 +66,11 @@ if st.sidebar.button("📥 Sync Hostinger Inbox"):
         st.sidebar.success(f"Sync complete! Replies: {summary['replied']}, Unsubscribes: {summary['unsubscribed']}")
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Domain Sales Outreach Pipeline v2.2")
+st.sidebar.caption("Domain Sales Outreach Pipeline v2.3")
 
 # Main Title Header
 st.markdown('<div class="main-header">🌐 Domain Sales Cold Outreach Platform</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Bulk Domain Inventory Management, Automated Scrapers, Pitch Editor & Hostinger SMTP Dispatch</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Unified Draft & Dispatch Studio, Controlled Scrapers, Bulk Portfolio Manager & Hostinger SMTP</div>', unsafe_allow_html=True)
 
 # Metric Summary Row
 domains = db.get_all_domains()
@@ -92,11 +92,10 @@ col5.metric("Prospect Replies", status_counts["REPLIED"])
 st.markdown("---")
 
 # Main Interface Tabs
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3 = st.tabs([
     "📊 Portfolio & Bulk Edit", 
     "🔍 Controlled Lead Scraper", 
-    "✉️ Draft Editor & Writer", 
-    "🚀 Bulk Campaign Dispatcher"
+    "✉️ Campaign Studio (Draft & Dispatch)"
 ])
 
 # ---------------------------------------------------------
@@ -235,175 +234,161 @@ with tab2:
             temp_path.unlink()
 
 # ---------------------------------------------------------
-# TAB 3: Draft Editor & Writer
+# TAB 3: Unified Campaign Studio (Draft & Dispatch)
 # ---------------------------------------------------------
 with tab3:
-    st.subheader("✍️ Lead Filter & Pitch Draft Generator")
+    st.subheader("✉️ Outreach Campaign Studio (Draft & Dispatch)")
 
-    # Status Filter
-    status_filter = st.selectbox(
-        "🔍 Filter Leads by Status:",
-        ["ALL", "DISCOVERED", "DRAFTED", "SENT", "REPLIED", "UNSUBSCRIBED", "FAILED"],
-        key="draft_status_filter"
-    )
+    # Status Filter & Sending Mode Controls Header
+    col_hdr1, col_hdr2 = st.columns([2, 2])
+    with col_hdr1:
+        status_filter = st.selectbox(
+            "🔍 Filter Leads by Status:",
+            ["ALL", "DRAFTED", "DISCOVERED", "SENT", "REPLIED", "UNSUBSCRIBED", "FAILED"],
+            key="studio_status_filter"
+        )
+    with col_hdr2:
+        mode_is_live = st.checkbox("🔥 Enable LIVE Hostinger SMTP Mode", value=False, key="studio_chk_live")
+        if mode_is_live:
+            st.warning("⚠️ LIVE MODE: Emails will be sent live via smtp.hostinger.com!")
+        else:
+            st.info("🧪 DRY-RUN MODE: Payloads will be validated without sending real emails.")
 
     if status_filter == "ALL":
-        filtered_leads = leads
+        studio_leads = leads
     else:
-        filtered_leads = [l for l in leads if l["status"] == status_filter]
+        studio_leads = [l for l in leads if l["status"] == status_filter]
 
-    st.markdown(f"**Showing {len(filtered_leads)} record(s)** for status filter: `{status_filter}`")
+    st.markdown(f"**Showing {len(studio_leads)} record(s)** for filter `{status_filter}`")
 
-    # Bulk Select to Generate Drafts or Delete Leads
-    if filtered_leads:
-        lead_df = pd.DataFrame([dict(l) for l in filtered_leads])
-        display_cols = [c for c in ["id", "target_domain", "lead_email", "lead_name", "company_name", "status"] if c in lead_df.columns]
+    if studio_leads:
+        lead_df = pd.DataFrame([dict(l) for l in studio_leads])
+        display_cols = [c for c in ["id", "target_domain", "lead_email", "lead_name", "company_name", "status", "email_subject"] if c in lead_df.columns]
         
-        st.markdown("#### 🎯 Select Leads for Bulk Actions")
-        
-        lead_df["Selected"] = False
+        lead_df["Select"] = False
         edited_df = st.data_editor(
-            lead_df[["Selected"] + display_cols],
-            column_config={"Selected": st.column_config.CheckboxColumn(required=True)},
-            disabled=display_cols,
+            lead_df[["Select"] + display_cols],
+            column_config={
+                "Select": st.column_config.CheckboxColumn(required=True),
+                "id": st.column_config.NumberColumn(disabled=True),
+                "target_domain": st.column_config.TextColumn("Target Domain", disabled=True),
+                "lead_email": st.column_config.TextColumn("Lead Email", disabled=True),
+                "lead_name": st.column_config.TextColumn("Lead Name", disabled=True),
+                "company_name": st.column_config.TextColumn("Company", disabled=True),
+                "status": st.column_config.TextColumn("Status", disabled=True),
+                "email_subject": st.column_config.TextColumn("Subject Line")
+            },
             hide_index=True,
             use_container_width=True,
-            key="lead_data_editor"
+            key="studio_data_editor"
         )
 
-        selected_rows = edited_df[edited_df["Selected"] == True]
+        selected_rows = edited_df[edited_df["Select"] == True]
         selected_ids = selected_rows["id"].tolist() if not selected_rows.empty else []
 
-        col_b1, col_b2, col_b3 = st.columns(3)
-        with col_b1:
-            if st.button("✍️ Write Drafts for Selected Leads", key="btn_write_selected", use_container_width=True):
+        # Bulk Actions Row
+        col_act1, col_act2, col_act3 = st.columns(3)
+        
+        with col_act1:
+            if st.button("✍️ Write / Re-Write Drafts for Selected", key="btn_studio_draft_selected", use_container_width=True):
                 if not selected_ids:
-                    st.warning("Please select at least 1 lead using the checkboxes above.")
+                    st.warning("Please check the 'Select' box for at least 1 lead.")
                 else:
                     generator = EmailGenerator(db)
                     written_count = 0
                     for l_id in selected_ids:
-                        lead_record = next(l for l in leads if l["id"] == l_id)
+                        lead_rec = next(l for l in leads if l["id"] == l_id)
                         subj, body = generator.generate_pitch(
-                            lead_record["target_domain"], 
-                            lead_record["company_name"] or "", 
-                            lead_record["lead_name"] or "",
-                            lead_record["domain_category"] if "domain_category" in lead_record.keys() else ""
+                            lead_rec["target_domain"],
+                            lead_rec["company_name"] or "",
+                            lead_rec["lead_name"] or "",
+                            lead_rec["domain_category"] if "domain_category" in lead_rec.keys() else ""
                         )
                         db.update_lead_draft(l_id, subj, body)
                         written_count += 1
                     st.success(f"Generated DomainEpoch pitch drafts for {written_count} selected lead(s)!")
                     st.rerun()
 
-        with col_b2:
-            if st.button("✍️ Write Drafts for ALL Pending DISCOVERED Leads", key="btn_write_all", use_container_width=True):
-                generator = EmailGenerator(db)
-                count = generator.generate_drafts_for_pending_leads()
-                st.success(f"Generated {count} pitch draft(s).")
-                st.rerun()
-
-        with col_b3:
-            if st.button("🗑️ Delete Selected Leads", key="btn_delete_leads", use_container_width=True):
+        with col_act2:
+            if st.button("🚀 Send Selected Emails (Auto-Drafts & Re-Sends)", key="btn_studio_send_selected", use_container_width=True):
                 if not selected_ids:
-                    st.warning("Please select at least 1 lead using the checkboxes above.")
+                    st.warning("Please check the 'Select' box for at least 1 lead to send.")
                 else:
-                    deleted_leads = db.delete_leads_by_ids(selected_ids)
-                    st.success(f"Deleted {deleted_leads} lead record(s) from database.")
-                    st.rerun()
-
-    # Individual Draft Editor Component
-    st.markdown("---")
-    st.subheader("✏️ Single Draft Inspector & Editor")
-    drafted_leads = db.get_leads_by_status("DRAFTED")
-    if drafted_leads:
-        selected_lead_email = st.selectbox(
-            "Select Drafted Lead to Edit:",
-            [l["lead_email"] for l in drafted_leads]
-        )
-
-        selected_lead = next(l for l in drafted_leads if l["lead_email"] == selected_lead_email)
-        st.markdown(f"**Target Domain**: `{selected_lead['target_domain']}` | **Email**: `{selected_lead['lead_email']}`")
-        
-        edit_subj = st.text_input("Email Subject", value=selected_lead["email_subject"] or "")
-        edit_body = st.text_area("Email Body", value=selected_lead["email_body"] or "", height=230)
-
-        if st.button("Save Draft Modifications"):
-            db.update_lead_draft(selected_lead["id"], edit_subj, edit_body)
-            st.success("Draft saved successfully!")
-            st.rerun()
-
-# ---------------------------------------------------------
-# TAB 4: Bulk Campaign Dispatcher
-# ---------------------------------------------------------
-with tab4:
-    st.subheader("🚀 Bulk Campaign Dispatcher")
-
-    disp_filter = st.selectbox(
-        "Filter Campaign Leads by Status:",
-        ["DRAFTED", "ALL", "DISCOVERED", "SENT", "REPLIED", "UNSUBSCRIBED", "FAILED"],
-        key="disp_status_filter"
-    )
-
-    if disp_filter == "ALL":
-        dispatch_leads = leads
-    else:
-        dispatch_leads = [l for l in leads if l["status"] == disp_filter]
-
-    st.markdown(f"**Showing {len(dispatch_leads)} lead(s)** ready for campaign selection.")
-
-    mode_is_live = st.checkbox("🔥 Enable LIVE Hostinger SMTP Dispatch Mode", value=False, key="chk_live_mode")
-    
-    if mode_is_live:
-        st.warning("⚠️ LIVE MODE ACTIVE: Real emails will be dispatched over Hostinger SMTP (smtp.hostinger.com:465)!")
-    else:
-        st.info("🧪 DRY-RUN SIMULATION MODE: Payloads will be validated without sending real emails.")
-
-    if dispatch_leads:
-        disp_df = pd.DataFrame([dict(l) for l in dispatch_leads])
-        disp_cols = [c for c in ["id", "target_domain", "lead_email", "company_name", "status", "email_subject"] if c in disp_df.columns]
-        
-        disp_df["Bulk Select"] = False
-        edited_disp_df = st.data_editor(
-            disp_df[["Bulk Select"] + disp_cols],
-            column_config={"Bulk Select": st.column_config.CheckboxColumn(required=True)},
-            disabled=disp_cols,
-            hide_index=True,
-            use_container_width=True,
-            key="disp_data_editor"
-        )
-
-        selected_disp_rows = edited_disp_df[edited_disp_df["Bulk Select"] == True]
-        selected_disp_ids = selected_disp_rows["id"].tolist() if not selected_disp_rows.empty else []
-
-        col_d1, col_d2 = st.columns(2)
-        with col_d1:
-            if st.button("🚀 Send Selected Drafted Emails", key="btn_send_selected", use_container_width=True):
-                if not selected_disp_ids:
-                    st.warning("Please check the 'Bulk Select' box for at least 1 lead.")
-                else:
+                    generator = EmailGenerator(db)
                     sender = SmtpSender(db)
                     dry_run = not mode_is_live
+                    
                     sent_count = 0
-                    with st.spinner("Dispatching selected campaign emails..."):
-                        for l_id in selected_disp_ids:
-                            lead_rec = next(l for l in leads if l["id"] == l_id)
-                            if lead_rec["status"] != "DRAFTED":
+                    auto_drafted_count = 0
+                    resent_count = 0
+
+                    with st.spinner("Processing & dispatching selected emails..."):
+                        for l_id in selected_ids:
+                            lead_rec = db.get_connection().cursor().execute("SELECT l.*, d.category as domain_category FROM leads l LEFT JOIN domains d ON l.target_domain = d.domain_name WHERE l.id = ?", (l_id,)).fetchone()
+                            if not lead_rec:
                                 continue
-                            if sender.send_email(
-                                lead_rec["lead_email"],
-                                lead_rec["email_subject"],
-                                lead_rec["email_body"],
-                                dry_run=dry_run
-                            ):
+
+                            # Safeguard Condition 1: Auto-Draft pitch if email subject/body missing
+                            subj = lead_rec["email_subject"]
+                            body = lead_rec["email_body"]
+
+                            if not subj or not body or lead_rec["status"] == "DISCOVERED":
+                                subj, body = generator.generate_pitch(
+                                    lead_rec["target_domain"],
+                                    lead_rec["company_name"] or "",
+                                    lead_rec["lead_name"] or "",
+                                    lead_rec["domain_category"] if "domain_category" in lead_rec.keys() else ""
+                                )
+                                db.update_lead_draft(l_id, subj, body)
+                                auto_drafted_count += 1
+
+                            # Safeguard Condition 2: Track if this is a Re-Send of a previously SENT email
+                            if lead_rec["status"] in ["SENT", "INITIAL_SENT", "FOLLOWUP_SENT"]:
+                                resent_count += 1
+
+                            # Dispatch email payload over Hostinger SMTP
+                            if sender.send_email(lead_rec["lead_email"], subj, body, dry_run=dry_run):
                                 db.mark_lead_sent(l_id)
                                 sent_count += 1
-                    st.success(f"Campaign execution complete! Processed {sent_count} selected email(s).")
+
+                    mode_str = "[LIVE Hostinger SMTP]" if mode_is_live else "[DRY-RUN Simulation]"
+                    st.success(f"Campaign execution complete {mode_str}! Processed: {sent_count} email(s) ({auto_drafted_count} auto-drafted, {resent_count} re-sent).")
                     st.rerun()
 
-        with col_d2:
-            if st.button("🚀 Send ALL DRAFTED Campaign Emails", key="btn_send_all_drafts", use_container_width=True):
+        with col_act3:
+            if st.button("🗑️ Delete Selected Leads", key="btn_studio_delete_selected", use_container_width=True):
+                if not selected_ids:
+                    st.warning("Please check the 'Select' box for at least 1 lead to delete.")
+                else:
+                    deleted = db.delete_leads_by_ids(selected_ids)
+                    st.success(f"Deleted {deleted} lead contact(s) from database.")
+                    st.rerun()
+
+    # Individual Single Lead Draft Inspector & Manual Editor
+    st.markdown("---")
+    st.subheader("✏️ Single Lead Inspector & Manual Copy Editor")
+    if leads:
+        lead_options = {f"{l['lead_email']} ({l['target_domain']}) - [{l['status']}]": l for l in leads}
+        selected_option = st.selectbox("Select Lead to Inspect / Edit Copy:", list(lead_options.keys()))
+        
+        target_lead = lead_options[selected_option]
+        st.markdown(f"**Target Domain**: `{target_lead['target_domain']}` | **Lead Email**: `{target_lead['lead_email']}` | **Status**: `{target_lead['status']}`")
+
+        edit_subj = st.text_input("Email Subject Line", value=target_lead["email_subject"] or f"{target_lead['target_domain']}")
+        edit_body = st.text_area("Email Body Copy", value=target_lead["email_body"] or "", height=230)
+
+        col_ed1, col_ed2 = st.columns(2)
+        with col_ed1:
+            if st.button("💾 Save Manual Copy Changes", key="btn_save_manual_copy"):
+                db.update_lead_draft(target_lead["id"], edit_subj, edit_body)
+                st.success("Pitch copy updated and saved to database!")
+                st.rerun()
+        with col_ed2:
+            if st.button("🚀 Send THIS Single Email Now", key="btn_send_single_lead"):
                 sender = SmtpSender(db)
-                with st.spinner("Dispatching all pending drafted campaign emails..."):
-                    dispatched = sender.execute_campaign(dry_run=not mode_is_live)
-                    st.success(f"Dispatched {dispatched} pending campaign email(s).")
+                dry_run = not mode_is_live
+                if sender.send_email(target_lead["lead_email"], edit_subj, edit_body, dry_run=dry_run):
+                    db.mark_lead_sent(target_lead["id"])
+                    mode_str = "[LIVE]" if mode_is_live else "[DRY-RUN]"
+                    st.success(f"Email dispatched {mode_str} to {target_lead['lead_email']}!")
                     st.rerun()
