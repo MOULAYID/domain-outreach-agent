@@ -211,3 +211,43 @@ class DatabaseManager:
                   AND date(sent_at) = date('now')
             """).fetchone()
             return res["cnt"] if res else 0
+
+    def delete_domains_by_ids(self, domain_ids: List[int]) -> int:
+        if not domain_ids:
+            return 0
+        placeholders = ",".join(["?"] * len(domain_ids))
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            # Fetch domain names to clean up associated leads
+            doms = cursor.execute(f"SELECT domain_name FROM domains WHERE id IN ({placeholders})", domain_ids).fetchall()
+            dom_names = [d["domain_name"] for d in doms]
+            
+            # Delete associated leads
+            if dom_names:
+                lead_placeholders = ",".join(["?"] * len(dom_names))
+                cursor.execute(f"DELETE FROM leads WHERE target_domain IN ({lead_placeholders})", dom_names)
+            
+            # Delete domains
+            cursor.execute(f"DELETE FROM domains WHERE id IN ({placeholders})", domain_ids)
+            conn.commit()
+            return len(domain_ids)
+
+    def update_domain(self, domain_id: int, new_domain_name: str, new_category: str):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            old_dom = cursor.execute("SELECT domain_name FROM domains WHERE id = ?", (domain_id,)).fetchone()
+            if old_dom:
+                old_name = old_dom["domain_name"]
+                cursor.execute("UPDATE domains SET domain_name = ?, category = ? WHERE id = ?", (new_domain_name.strip().lower(), new_category.strip(), domain_id))
+                if old_name != new_domain_name.strip().lower():
+                    cursor.execute("UPDATE leads SET target_domain = ? WHERE target_domain = ?", (new_domain_name.strip().lower(), old_name))
+            conn.commit()
+
+    def delete_leads_by_ids(self, lead_ids: List[int]) -> int:
+        if not lead_ids:
+            return 0
+        placeholders = ",".join(["?"] * len(lead_ids))
+        with self.get_connection() as conn:
+            conn.cursor().execute(f"DELETE FROM leads WHERE id IN ({placeholders})", lead_ids)
+            conn.commit()
+            return len(lead_ids)

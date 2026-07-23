@@ -66,11 +66,11 @@ if st.sidebar.button("📥 Sync Hostinger Inbox"):
         st.sidebar.success(f"Sync complete! Replies: {summary['replied']}, Unsubscribes: {summary['unsubscribed']}")
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Domain Sales Outreach Pipeline v2.1")
+st.sidebar.caption("Domain Sales Outreach Pipeline v2.2")
 
 # Main Title Header
 st.markdown('<div class="main-header">🌐 Domain Sales Cold Outreach Platform</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Automated Lead Scraper Control, B2B Prospecting, Bulk Dispatch & Hostinger SMTP Integration</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Bulk Domain Inventory Management, Automated Scrapers, Pitch Editor & Hostinger SMTP Dispatch</div>', unsafe_allow_html=True)
 
 # Metric Summary Row
 domains = db.get_all_domains()
@@ -93,14 +93,14 @@ st.markdown("---")
 
 # Main Interface Tabs
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📊 Portfolio & Import", 
+    "📊 Portfolio & Bulk Edit", 
     "🔍 Controlled Lead Scraper", 
     "✉️ Draft Editor & Writer", 
     "🚀 Bulk Campaign Dispatcher"
 ])
 
 # ---------------------------------------------------------
-# TAB 1: Portfolio & Import
+# TAB 1: Portfolio & Bulk Edit / Delete
 # ---------------------------------------------------------
 with tab1:
     st.subheader("📁 Import Domain Assets")
@@ -125,10 +125,49 @@ with tab1:
         if temp_path.exists():
             temp_path.unlink()
 
-    st.markdown("### 📋 Managed Domain Inventory")
+    st.markdown("---")
+    st.subheader("📋 Managed Domain Inventory (Bulk Edit & Delete)")
     if domains:
         dom_df = pd.DataFrame([dict(d) for d in domains])
-        st.dataframe(dom_df[["domain_name", "category", "created_at"]], use_container_width=True)
+        dom_df["Select"] = False
+
+        display_cols = ["Select", "id", "domain_name", "category", "created_at"]
+        
+        edited_dom_df = st.data_editor(
+            dom_df[display_cols],
+            column_config={
+                "Select": st.column_config.CheckboxColumn(required=True),
+                "id": st.column_config.NumberColumn(disabled=True),
+                "domain_name": st.column_config.TextColumn("Domain Name", required=True),
+                "category": st.column_config.TextColumn("Niche / Category"),
+                "created_at": st.column_config.TextColumn("Import Date", disabled=True)
+            },
+            hide_index=True,
+            use_container_width=True,
+            key="dom_data_editor"
+        )
+
+        selected_dom_rows = edited_dom_df[edited_dom_df["Select"] == True]
+        selected_dom_ids = selected_dom_rows["id"].tolist() if not selected_dom_rows.empty else []
+
+        col_dom_act1, col_dom_act2 = st.columns(2)
+        with col_dom_act1:
+            if st.button("💾 Save Table Edits to Database", key="btn_save_dom_edits", use_container_width=True):
+                updated_count = 0
+                for idx, row in edited_dom_df.iterrows():
+                    db.update_domain(int(row["id"]), str(row["domain_name"]), str(row["category"] or ""))
+                    updated_count += 1
+                st.success(f"Saved edits for {updated_count} domain record(s)!")
+                st.rerun()
+
+        with col_dom_act2:
+            if st.button("🗑️ Delete Selected Domains", key="btn_delete_doms", use_container_width=True):
+                if not selected_dom_ids:
+                    st.warning("Please check the 'Select' box for at least 1 domain to delete.")
+                else:
+                    deleted = db.delete_domains_by_ids(selected_dom_ids)
+                    st.success(f"Deleted {deleted} domain asset(s) and their associated leads.")
+                    st.rerun()
     else:
         st.info("No domains in database yet. Upload a CSV or TXT file above.")
 
@@ -215,14 +254,13 @@ with tab3:
 
     st.markdown(f"**Showing {len(filtered_leads)} record(s)** for status filter: `{status_filter}`")
 
-    # Bulk Select to Generate Drafts
+    # Bulk Select to Generate Drafts or Delete Leads
     if filtered_leads:
         lead_df = pd.DataFrame([dict(l) for l in filtered_leads])
         display_cols = [c for c in ["id", "target_domain", "lead_email", "lead_name", "company_name", "status"] if c in lead_df.columns]
         
         st.markdown("#### 🎯 Select Leads for Bulk Actions")
         
-        # Interactive Selectable Data Editor
         lead_df["Selected"] = False
         edited_df = st.data_editor(
             lead_df[["Selected"] + display_cols],
@@ -236,9 +274,9 @@ with tab3:
         selected_rows = edited_df[edited_df["Selected"] == True]
         selected_ids = selected_rows["id"].tolist() if not selected_rows.empty else []
 
-        col_b1, col_b2 = st.columns(2)
+        col_b1, col_b2, col_b3 = st.columns(3)
         with col_b1:
-            if st.button("✍️ Write Drafts for Selected Leads", key="btn_write_selected"):
+            if st.button("✍️ Write Drafts for Selected Leads", key="btn_write_selected", use_container_width=True):
                 if not selected_ids:
                     st.warning("Please select at least 1 lead using the checkboxes above.")
                 else:
@@ -258,11 +296,20 @@ with tab3:
                     st.rerun()
 
         with col_b2:
-            if st.button("✍️ Write Drafts for ALL Pending DISCOVERED Leads", key="btn_write_all"):
+            if st.button("✍️ Write Drafts for ALL Pending DISCOVERED Leads", key="btn_write_all", use_container_width=True):
                 generator = EmailGenerator(db)
                 count = generator.generate_drafts_for_pending_leads()
                 st.success(f"Generated {count} pitch draft(s).")
                 st.rerun()
+
+        with col_b3:
+            if st.button("🗑️ Delete Selected Leads", key="btn_delete_leads", use_container_width=True):
+                if not selected_ids:
+                    st.warning("Please select at least 1 lead using the checkboxes above.")
+                else:
+                    deleted_leads = db.delete_leads_by_ids(selected_ids)
+                    st.success(f"Deleted {deleted_leads} lead record(s) from database.")
+                    st.rerun()
 
     # Individual Draft Editor Component
     st.markdown("---")
@@ -291,7 +338,6 @@ with tab3:
 with tab4:
     st.subheader("🚀 Bulk Campaign Dispatcher")
 
-    # Status Filter
     disp_filter = st.selectbox(
         "Filter Campaign Leads by Status:",
         ["DRAFTED", "ALL", "DISCOVERED", "SENT", "REPLIED", "UNSUBSCRIBED", "FAILED"],
