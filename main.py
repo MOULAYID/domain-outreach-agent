@@ -303,6 +303,12 @@ def cmd_status(args, db: DatabaseManager):
         ]
         print(tabulate(recent_leads, headers=["Target Domain", "Email", "Company", "Status", "Date"], tablefmt="grid"))
 
+def cmd_gui(args, db: DatabaseManager):
+    print("\n[*] Launching Streamlit Graphical Web Dashboard...")
+    import subprocess
+    app_path = Path(__file__).parent / "app.py"
+    subprocess.run([sys.executable, "-m", "streamlit", "run", str(app_path)])
+
 def main():
     banner()
     db = DatabaseManager()
@@ -338,6 +344,9 @@ def main():
     p_autorun = subparsers.add_parser("auto-run", help="Run complete daily automation (Sync Inbox -> Verify -> Pitch -> Follow-up -> Send)")
     p_autorun.add_argument("--live", action="store_true", help="Run live Hostinger SMTP dispatch")
 
+    # GUI Dashboard
+    p_gui = subparsers.add_parser("gui", help="Launch Streamlit Graphical Web Dashboard in browser")
+
     # Run-All
     p_runall = subparsers.add_parser("run-all", help="Execute discover, generate, and send in sequence")
     p_runall.add_argument("--live", action="store_true", help="Run live Hostinger SMTP dispatch")
@@ -360,6 +369,7 @@ def main():
         "sync-inbox": cmd_sync_inbox,
         "verify-emails": cmd_verify_emails,
         "auto-run": cmd_auto_run,
+        "gui": cmd_gui,
         "run-all": cmd_auto_run,
         "status": cmd_status
     }

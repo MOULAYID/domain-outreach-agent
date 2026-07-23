@@ -89,7 +89,17 @@ Run live Hostinger SMTP email dispatch:
 python main.py send --live
 ```
 
-#### View Pipeline Dashboard
+#### Launch Web Graphical Interface (GUI Dashboard)
+Launch the interactive Streamlit web app in your default browser:
+```bash
+python main.py gui
+```
+Or directly via Streamlit:
+```bash
+streamlit run app.py
+```
+
+#### View CLI Pipeline Dashboard
 ```bash
 python main.py status
 ```
