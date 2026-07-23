@@ -133,7 +133,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### 🛡️ Global Safeguards")
 
 mode_is_live = st.sidebar.checkbox("🔥 Enable LIVE Hostinger SMTP", value=False, help="Uncheck for safe Dry-Run simulation mode")
-enforce_test_email = st.sidebar.checkbox("🛡️ Enforce Test Email Guard", value=True, help="When checked, live dispatches are ONLY sent to medido25@gmail.com")
+enforce_test_email = st.sidebar.checkbox("🛡️ Redirect All Emails to Test Email (medido25@gmail.com)", value=False, help="Check ONLY if you want to redirect dispatches to medido25@gmail.com for testing")
 
 if mode_is_live:
     st.sidebar.warning("⚠️ LIVE DISPATCH MODE: Real emails will be sent via smtp.hostinger.com!")
@@ -141,7 +141,7 @@ else:
     st.sidebar.info("🧪 DRY-RUN SIMULATION: No real emails will leave your server.")
 
 if enforce_test_email:
-    st.sidebar.caption("🔒 Test Safeguard Active: All test emails locked to `medido25@gmail.com`")
+    st.sidebar.caption("🔒 Test Safeguard Active: All dispatches redirected to `medido25@gmail.com`")
 
 st.sidebar.markdown("---")
 domains = db.get_all_domains()
