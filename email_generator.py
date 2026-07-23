@@ -21,7 +21,7 @@ class EmailGenerator:
         else:
             niche_phrase = "your industry"
 
-        subject = f"{target_domain}"
+        subject = f"{target_domain} is available!"
 
         body = f"""{greeting}
 
