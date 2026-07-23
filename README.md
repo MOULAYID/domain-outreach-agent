@@ -59,6 +59,8 @@ SENDER_NAME=Your Name
 MAX_DAILY_EMAILS=30
 MIN_DELAY_SECONDS=180
 MAX_DELAY_SECONDS=420
+
+TEST_RECIPIENT_EMAIL=your_test_email@example.com
 ```
 
 ### 3. Usage

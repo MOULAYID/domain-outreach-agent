@@ -19,6 +19,7 @@ class Config:
     
     DB_FILE = Path(__file__).parent / os.getenv("DB_FILE", "outreach.db")
     HUNTER_API_KEY = os.getenv("HUNTER_API_KEY", "")
+    TEST_RECIPIENT_EMAIL = os.getenv("TEST_RECIPIENT_EMAIL", "")
 
     @classmethod
     def validate_smtp(cls) -> bool:

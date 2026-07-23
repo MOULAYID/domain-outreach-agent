@@ -133,7 +133,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### 🛡️ Global Safeguards")
 
 mode_is_live = st.sidebar.checkbox("🔥 Enable LIVE Hostinger SMTP", value=False, help="Uncheck for safe Dry-Run simulation mode")
-enforce_test_email = st.sidebar.checkbox("🛡️ Redirect All Emails to Test Email (medido25@gmail.com)", value=False, help="Check ONLY if you want to redirect dispatches to medido25@gmail.com for testing")
+enforce_test_email = st.sidebar.checkbox("🛡️ Redirect All Emails to Test Email", value=False, help="Check ONLY if you want to redirect dispatches to your configured TEST_RECIPIENT_EMAIL for testing")
 
 if mode_is_live:
     st.sidebar.warning("⚠️ LIVE DISPATCH MODE: Real emails will be sent via smtp.hostinger.com!")
@@ -141,7 +141,8 @@ else:
     st.sidebar.info("🧪 DRY-RUN SIMULATION: No real emails will leave your server.")
 
 if enforce_test_email:
-    st.sidebar.caption("🔒 Test Safeguard Active: All dispatches redirected to `medido25@gmail.com`")
+    test_addr_label = Config.TEST_RECIPIENT_EMAIL or "Configured Test Email"
+    st.sidebar.caption(f"🔒 Test Safeguard Active: All dispatches redirected to `{test_addr_label}`")
 
 st.sidebar.markdown("---")
 domains = db.get_all_domains()
@@ -460,7 +461,7 @@ elif view_selection == "✉️ Campaign Studio (Draft & Dispatch)":
                                 resent_count += 1
 
                             # Test Safeguard Enforcement
-                            target_recipient = "medido25@gmail.com" if enforce_test_email else lead_rec["lead_email"]
+                            target_recipient = Config.TEST_RECIPIENT_EMAIL if (enforce_test_email and Config.TEST_RECIPIENT_EMAIL) else lead_rec["lead_email"]
 
                             try:
                                 if sender.send_email(target_recipient, subj, body, dry_run=dry_run):
@@ -506,7 +507,7 @@ elif view_selection == "✉️ Campaign Studio (Draft & Dispatch)":
             if st.button("🚀 Send Single Email Now", key="btn_send_single_now"):
                 sender = SmtpSender(db)
                 dry_run = not mode_is_live
-                target_recipient = "medido25@gmail.com" if enforce_test_email else target_lead["lead_email"]
+                target_recipient = Config.TEST_RECIPIENT_EMAIL if (enforce_test_email and Config.TEST_RECIPIENT_EMAIL) else target_lead["lead_email"]
                 try:
                     if sender.send_email(target_recipient, edit_subj, edit_body, dry_run=dry_run):
                         db.mark_lead_sent(target_lead["id"])
