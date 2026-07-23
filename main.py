@@ -20,42 +20,145 @@ def banner():
     print("  [+] DOMAIN SALES COLD OUTREACH PIPELINE (HOSTINGER SMTP)  ")
     print("=" * 60)
 
-def parse_domains_from_file(file_path: Path) -> list[str]:
+def parse_domains_from_file(file_path: Path) -> list[tuple[str, str]]:
     domains_to_add = []
     suffix = file_path.suffix.lower()
 
     if suffix == '.csv':
         with open(file_path, "r", encoding="utf-8-sig") as f:
-            reader = csv.reader(f)
+            sample = f.readline()
+            f.seek(0)
+            delimiter = ';' if ';' in sample and sample.count(';') > sample.count(',') else ','
+            
+            reader = csv.reader(f, delimiter=delimiter)
             header = next(reader, None)
             domain_col_idx = 0
+            cat_col_idxs = []
 
-            # Detect domain column header if present
+            # Detect domain and category column headers
             if header:
                 header_lower = [h.strip().lower() for h in header]
-                for possible_name in ['domain', 'domain_name', 'domains', 'domain name', 'name', 'url']:
+                for possible_name in ['domain name', 'domain_name', 'domain', 'domains', 'name', 'url']:
                     if possible_name in header_lower:
                         domain_col_idx = header_lower.index(possible_name)
                         break
-                else:
-                    # If header line wasn't a recognized header, treat it as first row if it looks like a domain
-                    if '.' in header[0]:
-                        domains_to_add.append(header[0].strip())
+                
+                # Check for category / target audience columns
+                for idx, col_name in enumerate(header_lower):
+                    if any(key in col_name for key in ['category', 'target audience', 'keywords', 'niche', 'use cases']):
+                        cat_col_idxs.append(idx)
 
             for row in reader:
                 if row and len(row) > domain_col_idx:
-                    val = row[domain_col_idx].strip()
-                    if val and '.' in val and not val.startswith('#'):
-                        domains_to_add.append(val)
+                    dom_val = row[domain_col_idx].strip()
+                    if dom_val and '.' in dom_val and not dom_val.startswith('#'):
+                        cats = []
+                        for c_idx in cat_col_idxs:
+                            if len(row) > c_idx and row[c_idx].strip():
+                                # Extract items split by | or ,
+                                raw_cat = row[c_idx].strip()
+                                parts = [p.strip() for p in raw_cat.replace(';', '|').split('|') if p.strip()]
+                                cats.extend(parts)
+                        
+                        # Deduplicate categories maintaining order
+                        seen = set()
+                        unique_cats = [c for c in cats if not (c.lower() in seen or seen.add(c.lower()))]
+                        cat_str = " | ".join(unique_cats)
+                        
+                        domains_to_add.append((dom_val, cat_str))
     else:
         # Plain text file (one domain per line)
         with open(file_path, "r", encoding="utf-8") as f:
             for line in f:
                 d = line.strip()
                 if d and not d.startswith("#"):
-                    domains_to_add.append(d)
+                    domains_to_add.append((d, ""))
 
     return domains_to_add
+
+def parse_leads_from_file(file_path: Path) -> list[dict[str, str]]:
+    leads_to_add = []
+    suffix = file_path.suffix.lower()
+
+    if suffix == '.csv':
+        with open(file_path, "r", encoding="utf-8-sig") as f:
+            sample = f.readline()
+            f.seek(0)
+            delimiter = ';' if ';' in sample and sample.count(';') > sample.count(',') else ','
+            
+            reader = csv.reader(f, delimiter=delimiter)
+            header = next(reader, None)
+            
+            dom_idx = 0
+            email_idx = 1
+            name_idx = None
+            company_idx = None
+            field_idx = None
+
+            if header:
+                header_lower = [h.strip().lower() for h in header]
+                
+                # Detect Domain column
+                for key in ['target_domain', 'domain_name', 'domain name', 'domain', 'url']:
+                    if key in header_lower:
+                        dom_idx = header_lower.index(key)
+                        break
+
+                # Detect Email column
+                for key in ['lead_email', 'contact_email', 'email', 'e-mail']:
+                    if key in header_lower:
+                        email_idx = header_lower.index(key)
+                        break
+
+                # Detect Name column
+                for key in ['lead_name', 'contact_name', 'full_name', 'name']:
+                    if key in header_lower:
+                        name_idx = header_lower.index(key)
+                        break
+
+                # Detect Company column
+                for key in ['company_name', 'organization', 'company', 'org']:
+                    if key in header_lower:
+                        company_idx = header_lower.index(key)
+                        break
+
+                # Detect Field/Industry column
+                for key in ['field', 'industry', 'category', 'niche', 'target audience & uses', 'target audience']:
+                    if key in header_lower:
+                        field_idx = header_lower.index(key)
+                        break
+
+            for row in reader:
+                if row and len(row) > dom_idx and len(row) > email_idx:
+                    dom_val = row[dom_idx].strip()
+                    email_val = row[email_idx].strip()
+                    if dom_val and email_val and '@' in email_val:
+                        name_val = row[name_idx].strip() if name_idx is not None and len(row) > name_idx else ""
+                        comp_val = row[company_idx].strip() if company_idx is not None and len(row) > company_idx else ""
+                        field_val = row[field_idx].strip() if field_idx is not None and len(row) > field_idx else ""
+                        
+                        leads_to_add.append({
+                            "target_domain": dom_val,
+                            "lead_email": email_val,
+                            "lead_name": name_val,
+                            "company_name": comp_val,
+                            "field": field_val
+                        })
+    return leads_to_add
+
+def cmd_import_leads(args, db: DatabaseManager):
+    file_path = Path(args.target)
+    if not file_path.is_file():
+        print(f"[!] File not found: {file_path}")
+        return
+
+    leads_to_add = parse_leads_from_file(file_path)
+    if not leads_to_add:
+        print("[!] No valid lead records found in the provided CSV file.")
+        return
+
+    added, skipped = db.add_manual_leads(leads_to_add)
+    print(f"\n[OK] Manual Leads Import Summary: {added} new lead(s) imported, {skipped} duplicate(s) skipped.")
 
 def cmd_import(args, db: DatabaseManager):
     target = args.target
@@ -65,7 +168,7 @@ def cmd_import(args, db: DatabaseManager):
     if file_path.is_file():
         domains_to_add = parse_domains_from_file(file_path)
     else:
-        domains_to_add.append(target)
+        domains_to_add.append((target, ""))
 
     if not domains_to_add:
         print("[!] No valid domain names provided to import.")
@@ -127,6 +230,14 @@ def cmd_status(args, db: DatabaseManager):
     print("\n[+] PIPELINE STATUS OVERVIEW")
     print(tabulate(table_data, headers=["Metric", "Value"], tablefmt="grid"))
 
+    if domains:
+        print("\n[+] DOMAIN INVENTORY SUMMARY (Last 10)")
+        recent_doms = [
+            [d["domain_name"], (d["category"][:45] + "...") if d["category"] and len(d["category"]) > 45 else (d["category"] or "N/A"), d["created_at"]]
+            for d in domains[:10]
+        ]
+        print(tabulate(recent_doms, headers=["Domain Name", "Categories", "Import Date"], tablefmt="grid"))
+
     if leads:
         print("\n[+] RECENT LEADS SUMMARY (Last 10)")
         recent_leads = [
@@ -142,9 +253,13 @@ def main():
     parser = argparse.ArgumentParser(description="Domain Sales Outreach Pipeline")
     subparsers = parser.add_subparsers(dest="command", help="Available Commands")
 
-    # Import
+    # Import Domains
     p_import = subparsers.add_parser("import", help="Import domain names from CSV, TXT file, or domain string")
     p_import.add_argument("target", help="File path (e.g. my_domains.csv, domains.txt) or domain string (e.g. cloudai.com)")
+
+    # Import Manual Leads
+    p_import_leads = subparsers.add_parser("import-leads", help="Import pre-qualified leads CSV (domain, email, name, company, field)")
+    p_import_leads.add_argument("target", help="Leads CSV file path (e.g. my_leads.csv)")
 
     # Discover
     p_discover = subparsers.add_parser("discover", help="Search and discover buyer leads for domains")
@@ -171,6 +286,7 @@ def main():
 
     cmd_map = {
         "import": cmd_import,
+        "import-leads": cmd_import_leads,
         "discover": cmd_discover,
         "generate": cmd_generate,
         "send": cmd_send,

@@ -1,3 +1,4 @@
+import time
 import re
 import urllib.parse
 import requests
@@ -8,9 +9,21 @@ from database import DatabaseManager
 EMAIL_REGEX = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
 
 DISCARD_EMAILS = {
+    # Privacy Proxies & WHOIS Services
     'privacyprotect', 'whoisproxy', 'contactprivacy', 'domainprivacy', 
     'selectuser', 'domainsbyproxy', 'identityprotect', 'anonymousemail',
-    'abuse@', 'postmaster@', 'webmaster@', 'hostmaster@', 'registrar@'
+    'whoisrequest', 'privacyguard', 'proxyname', 'whoisguard',
+    # Registrars & Registries
+    'pir.org', 'namebright.com', 'godaddy.com', 'namecheap.com', 'tucows.com',
+    'enom.com', 'sedo.com', 'dan.com', 'hugedomains.com', 'domainmarket.com',
+    'secureserver.net', 'markmonitor', 'cscglobal', 'gandi.net', 'networksolutions',
+    'dynadot.com', 'porkbun.com', 'ovh.net', 'ionos.com', 'hostinger.com', 'verisign.com',
+    'cloudflare.com', 'afternic.com', 'uniregistry.com', 'wildwestdomains.com',
+    # Generic Roles & Prefixes
+    'abuse@', 'postmaster@', 'webmaster@', 'hostmaster@', 'registrar@',
+    'admin@', 'administrator@', 'support@', 'info@', 'sales@', 'contact@',
+    'whois@', 'billing@', 'help@', 'dns@', 'noc@', 'privacy@', 'legal@',
+    'compliance@', 'security@', 'service@', 'marketing@', 'press@', 'media@'
 }
 
 class LeadFinder:
@@ -47,6 +60,7 @@ class LeadFinder:
             alt_domain = f"{base_name}.{ext}"
             rdap_url = f"https://rdap.org/domain/{alt_domain}"
             try:
+                time.sleep(0.5)
                 resp = self.session.get(rdap_url, timeout=5)
                 if resp.status_code == 200:
                     text = resp.text
