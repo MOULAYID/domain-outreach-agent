@@ -13,18 +13,20 @@ DISCARD_EMAILS = {
     # Privacy Proxies & WHOIS Services
     'privacyprotect', 'whoisproxy', 'contactprivacy', 'domainprivacy', 
     'selectuser', 'domainsbyproxy', 'identityprotect', 'anonymousemail',
-    'whoisrequest', 'privacyguard', 'proxyname', 'whoisguard',
+    'whoisrequest', 'privacyguard', 'proxyname', 'whoisguard', 'withheldforprivacy',
     # Registrars & Registries
     'pir.org', 'namebright.com', 'godaddy.com', 'namecheap.com', 'tucows.com',
     'enom.com', 'sedo.com', 'dan.com', 'hugedomains.com', 'domainmarket.com',
     'secureserver.net', 'markmonitor', 'cscglobal', 'gandi.net', 'networksolutions',
     'dynadot.com', 'porkbun.com', 'ovh.net', 'ionos.com', 'hostinger.com', 'verisign.com',
     'cloudflare.com', 'afternic.com', 'uniregistry.com', 'wildwestdomains.com',
+    'aws.com', 'atom.com', 'gname.com',
     # Generic Roles & Prefixes
     'abuse@', 'postmaster@', 'webmaster@', 'hostmaster@', 'registrar@',
     'admin@', 'administrator@', 'support@', 'info@', 'sales@', 'contact@',
     'whois@', 'billing@', 'help@', 'dns@', 'noc@', 'privacy@', 'legal@',
-    'compliance@', 'security@', 'service@', 'marketing@', 'press@', 'media@'
+    'compliance@', 'security@', 'service@', 'marketing@', 'press@', 'media@',
+    'misuse@', 'trustandsafety@'
 }
 
 class LeadFinder:
