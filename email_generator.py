@@ -7,40 +7,37 @@ class EmailGenerator:
         self.db = db
 
     def generate_pitch(self, target_domain: str, company_name: str, lead_name: str = "", category: str = "") -> tuple[str, str]:
-        sender_name = Config.SENDER_NAME or "Domain Owner"
-        name_greeting = f" {lead_name}" if lead_name and lead_name.strip() and lead_name != "Decision Maker" else ""
-        
+        first_name = lead_name.strip().split()[0] if lead_name and lead_name.strip() and lead_name != "Decision Maker" else "there"
+
         if category:
             raw_items = [item.strip() for item in re.split(r'[,\|;]', category) if item.strip()]
             cat_items = [c for c in raw_items if len(c) <= 30]
-            if len(cat_items) > 1:
-                sector_phrase = f"in sectors like {', '.join(cat_items[:3])}"
+            if len(cat_items) >= 2:
+                niche_phrase = f"{cat_items[0]} & {cat_items[1]}"
             elif len(cat_items) == 1:
-                sector_phrase = f"in the {cat_items[0]} space"
+                niche_phrase = cat_items[0]
             else:
-                sector_phrase = "in your sector"
+                niche_phrase = "your industry"
         else:
-            sector_phrase = "in your sector"
+            niche_phrase = "your industry"
 
-        company_phrase = f"leading {company_name}" if company_name else "your work"
+        subject = f"{target_domain}"
 
-        subject = f"Acquisition query: {target_domain}"
+        body = f"""Hi {first_name},
 
-        body = f"""Hi{name_greeting},
+I am reaching out because **{target_domain}** is currently available for acquisition.
 
-I'm reaching out directly because of {company_phrase} {sector_phrase}.
+Given your strong presence in the {niche_phrase} space, I wanted to see if securing this premium asset aligns with your current digital strategy.
 
-I currently hold the domain asset **{target_domain}** and am preparing to transfer it to a category leader. 
+Please let me know if acquiring this is of interest to your team.
 
-Given your footprint {sector_phrase}, acquiring **{target_domain}** would provide immediate brand authority, defense against competitors, and marketing advantages.
+Best,
 
-Are you open to receiving a quick acquisition proposal or discussing terms for the domain?
+Idris | DomainEpoch
+linkedin.com/in/moulay-idris-daouadi-/
+domainepoch.com | contact@domainepoch.com
 
-Best regards,
-
-{sender_name}
----
-To opt out of future domain updates regarding {target_domain}, please reply with 'unsubscribe'.
+P.S. To ensure a safe and smooth transfer, we conduct all transactions securely through GoDaddy Escrow.
 """
         return subject, body
 
