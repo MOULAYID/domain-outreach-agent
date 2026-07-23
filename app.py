@@ -347,11 +347,17 @@ with tab3:
                                 resent_count += 1
 
                             # Dispatch email payload over Hostinger SMTP
-                            if sender.send_email(lead_rec["lead_email"], subj, body, dry_run=dry_run):
-                                db.mark_lead_sent(l_id)
-                                sent_count += 1
+                            try:
+                                if sender.send_email(lead_rec["lead_email"], subj, body, dry_run=dry_run):
+                                    db.mark_lead_sent(l_id)
+                                    sent_count += 1
+                            except Exception as err:
+                                db.mark_lead_failed(l_id, str(err))
+                                st.error(f"❌ Failed sending to {lead_rec['lead_email']}: {err}")
 
-                    mode_str = "[LIVE Hostinger SMTP]" if mode_is_live else "[DRY-RUN Simulation]"
+                    mode_str = "[LIVE Hostinger SMTP]" if mode_is_live else "[DRY-RUN Simulation - No real emails sent]"
+                    if not mode_is_live:
+                        st.info("ℹ️ NOTE: 'LIVE Hostinger SMTP Mode' checkbox was UNCHECKED, so this was a Dry-Run simulation. Check the box above to send real emails!")
                     st.success(f"Campaign execution complete {mode_str}! Processed: {sent_count} email(s) ({auto_drafted_count} auto-drafted, {resent_count} re-sent).")
                     st.rerun()
 
@@ -387,8 +393,14 @@ with tab3:
             if st.button("🚀 Send THIS Single Email Now", key="btn_send_single_lead"):
                 sender = SmtpSender(db)
                 dry_run = not mode_is_live
-                if sender.send_email(target_lead["lead_email"], edit_subj, edit_body, dry_run=dry_run):
-                    db.mark_lead_sent(target_lead["id"])
-                    mode_str = "[LIVE]" if mode_is_live else "[DRY-RUN]"
-                    st.success(f"Email dispatched {mode_str} to {target_lead['lead_email']}!")
-                    st.rerun()
+                try:
+                    if sender.send_email(target_lead["lead_email"], edit_subj, edit_body, dry_run=dry_run):
+                        db.mark_lead_sent(target_lead["id"])
+                        mode_str = "[LIVE Hostinger SMTP]" if mode_is_live else "[DRY-RUN Simulation]"
+                        if not mode_is_live:
+                            st.info("ℹ️ NOTE: Check '🔥 Enable LIVE Hostinger SMTP Mode' above to send real emails.")
+                        st.success(f"Email dispatched {mode_str} to {target_lead['lead_email']}!")
+                        st.rerun()
+                except Exception as err:
+                    db.mark_lead_failed(target_lead["id"], str(err))
+                    st.error(f"❌ Hostinger SMTP Error: {err}")
