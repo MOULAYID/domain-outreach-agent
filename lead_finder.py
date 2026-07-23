@@ -5,6 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 from typing import List, Dict
 from database import DatabaseManager
+from enrichment import B2BLeadEnricher
 
 EMAIL_REGEX = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
 
@@ -29,6 +30,7 @@ DISCARD_EMAILS = {
 class LeadFinder:
     def __init__(self, db: DatabaseManager):
         self.db = db
+        self.enricher = B2BLeadEnricher()
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -111,17 +113,26 @@ class LeadFinder:
         print(f"\n[*] Searching for leads interested in: {target_domain}...")
         found_count = 0
         
+        # Method 1: TLD Competitor RDAP/WHOIS
         rdap_leads = self.find_leads_via_rdap(target_domain)
         for lead in rdap_leads:
             if self.db.add_lead(target_domain, lead['email'], lead['name'], lead['company'], lead['source']):
                 found_count += 1
                 print(f"   [+] Found lead via WHOIS: {lead['email']} ({lead['company']})")
 
+        # Method 2: Niche Search Query Scraping
         search_leads = self.find_leads_via_search(target_domain)
         for lead in search_leads:
             if self.db.add_lead(target_domain, lead['email'], lead['name'], lead['company'], lead['source']):
                 found_count += 1
                 print(f"   [+] Found lead via Search: {lead['email']} ({lead['company']})")
+
+        # Method 3: B2B API Enrichment (Hunter.io / Apollo)
+        api_lead = self.enricher.find_lead_for_domain(target_domain)
+        if api_lead:
+            if self.db.add_lead(target_domain, api_lead['lead_email'], api_lead['lead_name'], api_lead['company_name'], api_lead['source']):
+                found_count += 1
+                print(f"   [+] Found lead via B2B API: {api_lead['lead_email']} ({api_lead['company_name']})")
 
         if found_count == 0:
             print(f"   [-] No new unique leads discovered for {target_domain}.")
